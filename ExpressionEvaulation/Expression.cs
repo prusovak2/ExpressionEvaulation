@@ -5,13 +5,30 @@ using System.Text;
 
 [assembly: InternalsVisibleTo("ExpressionTests")]
 
-namespace ExpressionEvaulation
+
+namespace ExpressionEvaluation
 {
+    /// <summary>
+    /// represents one expression
+    /// </summary>
     public class Expression
     {
+        /// <summary>
+        /// null until successful evaluation
+        /// </summary>
         public int? Result { get; private set; }
+
+        /// <summary>
+        /// root of evaluation tree
+        /// null until expression has been read successfully
+        /// </summary>
         public Token Root { get; set; }
 
+        /// <summary>
+        /// tries to evaluate expression, returns result, sets result property
+        /// prints error message to stdout when expression idf somewhat flawed
+        /// </summary>
+        /// <returns></returns>
         public int? Evaluate()
         {
             int? result = null;
@@ -19,6 +36,7 @@ namespace ExpressionEvaulation
             {
                 return result;
             }
+            //evaluate
             try { result = this.Root.Evaluate(); }
             catch (DivideByZeroException)
             {
@@ -33,19 +51,26 @@ namespace ExpressionEvaulation
         }
 
         /// <summary>
-        /// root stays null when input is flawed!
+        /// tries to parse input line to evaluation tree
+        /// root property stays null when input is flawed!
         /// </summary>
         /// <param name="input"></param>      
         public bool ReadExpression(string input)
         {
-            Queue<string> Words = this.SplitInputToQueueOfStrings(input);
+            Queue<string> words = this.SplitInputToQueueOfStrings(input);
             //TODO: some other behaviour when input is empty?
-            if (Words.Count > 0)
+           
+            //nonempty input
+            if (words.Count > 0)
             {
-                string firstWord = Words.Dequeue();
-                try { this.Root = this.TryParseToken(firstWord, Words, true); }
+                string firstWord = words.Dequeue();
+                try
+                {
+                    this.Root = this.TryParseToken(firstWord, words, false);
+                }
                 catch (FormatException)
                 {
+                    //expression is flawed, lets dispose its tree, its unfinished and useless
                     if (this.Root != null)
                     {
                         this.Root.Dispose();
@@ -55,8 +80,10 @@ namespace ExpressionEvaulation
                     return false;
 
                 }
-                if (Words.Count > 0)
+                //something remained unprocessed after parsing of expression - some extra number or some mess at the end of expression
+                if (words.Count > 0)
                 {
+                    //expression is flawed, lets dispose its tree, its unfinished and useless
                     if (this.Root != null)
                     {
                         Root.Dispose();
@@ -69,11 +96,15 @@ namespace ExpressionEvaulation
                 return true;
 
             }
-           // Console.WriteLine("Format Error");
-            return false; //empty queue
+            return false; //empty queue - empty input
             
         }
 
+        /// <summary>
+        /// same as String.Split('') but returns queue instead of array
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
         internal Queue<string> SplitInputToQueueOfStrings(string input)
         {
             Queue<string> Words = new Queue<string>();
@@ -81,6 +112,8 @@ namespace ExpressionEvaulation
             while(i<input.Length)
             {
                 string word = "";
+
+                //read word
                 while (i < input.Length && input[i]!= ' ') 
                 {
                     word += input[i];
@@ -93,13 +126,14 @@ namespace ExpressionEvaulation
         }
 
         /// <summary>
-        /// 
+        /// tries to parse a part of expression
         /// </summary>
         /// <param name="word"></param>
         /// <param name="Words"></param>
+        /// <param name="operandExpected"></param>
         /// /// <exception cref="FormatException"></exception>
         /// <returns></returns>
-        internal Token TryParseToken(string word, Queue<string> Words, bool operantExpected)
+        internal Token TryParseToken(string word, Queue<string> Words, bool operandExpected)
         {
             switch (word)
             {
@@ -107,8 +141,10 @@ namespace ExpressionEvaulation
                     {
                         Add newToken = new Add();
                         string anotherWord = Expression.DequeueSafely(Words);
+                        //create left subtree
                         newToken.FirstArg = this.TryParseToken(anotherWord, Words, false);
                         anotherWord = Expression.DequeueSafely(Words);
+                        //create right subtree
                         newToken.SecondArg = this.TryParseToken(anotherWord, Words, false);
                         return newToken;
                     }
@@ -116,8 +152,10 @@ namespace ExpressionEvaulation
                     {
                         Subtract newToken = new Subtract();
                         string anotherWord = Expression.DequeueSafely(Words);
+                        //create left subtree
                         newToken.FirstArg = this.TryParseToken(anotherWord, Words, false);
                         anotherWord = Expression.DequeueSafely(Words);
+                        //create right subtree
                         newToken.SecondArg = this.TryParseToken(anotherWord, Words, false);
                         return newToken;
                     }
@@ -125,8 +163,10 @@ namespace ExpressionEvaulation
                     {
                         Multiply newToken = new Multiply();
                         string anotherWord = Expression.DequeueSafely(Words);
+                        //create left subtree
                         newToken.FirstArg = this.TryParseToken(anotherWord, Words, false);
                         anotherWord = Expression.DequeueSafely(Words);
+                        //create right subtree
                         newToken.SecondArg = this.TryParseToken(anotherWord, Words, false);
                         return newToken;
                     }
@@ -134,18 +174,21 @@ namespace ExpressionEvaulation
                     {
                         Divide newToken = new Divide();
                         string anotherWord = Expression.DequeueSafely(Words);
+                        //create left subtree
                         newToken.FirstArg = this.TryParseToken(anotherWord, Words, false);
                         anotherWord = Expression.DequeueSafely(Words);
+                        //create right subtree
                         newToken.SecondArg = this.TryParseToken(anotherWord, Words, false);
                         return newToken;
                     }
-                case "~":
+                case "~": //negative number
                     {
-                        if (operantExpected)
+                        if (operandExpected)
                         {
                             throw new FormatException("invalid input string");
                         }
                         string anotherWord = Expression.DequeueSafely(Words);
+                        //number should follow unary ~
                         if (int.TryParse(anotherWord, out int value)&& value >= 0)
                         {
                             Number newToken = new Number((-1)*value);
@@ -153,20 +196,23 @@ namespace ExpressionEvaulation
                         }
                         else
                         {
+                            //number should follow unary ~, but it does not
                             throw new FormatException("invalid input string");
                         }
                     }
-                default:
+                default: //number or some random stuff
                     {
-                        if (operantExpected)
+                        if (operandExpected)
                         {
                             throw new FormatException("invalid input string");
                         }
+                        //number
                         if (int.TryParse(word, out int value) && value>=0)
                         {
                             Number newToken = new Number(value);
                             return newToken;
                         }
+                        //some random stuff
                         else
                         {
                             throw new FormatException("invalid input string");
@@ -176,7 +222,8 @@ namespace ExpressionEvaulation
             }
         }
         /// <summary>
-        /// 
+        /// tries to dequeue member from a queue, throws format exception when queue is empty
+        /// is called when queue is expected to be nonempty and empty queue means flawed formula 
         /// </summary>
         /// <param name="queue"></param>
         /// <exception cref="FormatException"></exception>
@@ -190,6 +237,11 @@ namespace ExpressionEvaulation
             return queue.Dequeue();
         }
 
+        /// <summary>
+        /// recursive,
+        /// returns indented string representation of evaluation tree
+        /// </summary>
+        /// <returns></returns>
         public string ExpressionTreeToString()
         {
             if(this.Root is null)
@@ -201,6 +253,7 @@ namespace ExpressionEvaulation
             ExpressionTreeToString(this.Root, builder, tabCounter);
             return builder.ToString();
         }
+        
         private void ExpressionTreeToString(Token Root, StringBuilder builder, int tabCounter)
         {
             if(Root is Number)
